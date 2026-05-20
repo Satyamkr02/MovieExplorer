@@ -1,97 +1,376 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# MovieExplorer 🎬
 
-# Getting Started
+MovieExplorer is a modern and scalable React Native application that allows users to explore trending, popular, and searchable movies using the TMDB API.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+The app is built using **React Native CLI** and follows real-world mobile app development practices such as Redux state management, API integration, pagination, local caching, reusable components, and smooth user experience.
 
-## Step 1: Start Metro
+This project was created to demonstrate production-level React Native development skills including clean architecture, performance optimization, API handling, and professional UI implementation.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+---
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+# ✨ Features
 
-```sh
-# Using npm
-npm start
+## 🎥 Browse Movies
+Users can browse trending and popular movies fetched from the TMDB API.
 
-# OR using Yarn
-yarn start
+### Includes:
+- Trending movies
+- Popular movies
+- Dynamic movie posters
+- Ratings and release dates
+
+---
+
+## 🔍 Search Functionality
+The app supports real-time movie searching.
+
+### Features:
+- Instant search results
+- API-based search
+- Smooth typing experience
+- Empty state handling
+
+---
+
+## ♾️ Infinite Scrolling / Pagination
+Movies load continuously while scrolling.
+
+### Benefits:
+- Better performance
+- Reduced API load
+- Smooth user experience
+- Real-world production behavior
+
+---
+
+## 🧠 Redux Toolkit State Management
+Redux Toolkit is used for scalable and centralized state management.
+
+### Used For:
+- Movie data management
+- Search state
+- Loading states
+- Error handling
+
+---
+
+## 💾 Local Storage Persistence
+AsyncStorage is used to store data locally.
+
+### Purpose:
+- Restore data after app restart
+- Improve performance
+- Better offline experience
+
+---
+
+## ⚡ Smooth UI & UX
+The app focuses heavily on professional user experience.
+
+### UI Features:
+- Skeleton loading
+- Smooth animations
+- Responsive layouts
+- Clean movie cards
+- Optimized spacing
+
+---
+
+## 📱 Cross Platform Support
+Supports both:
+- Android
+- iOS
+
+Built using React Native CLI for native-level performance.
+
+---
+
+# 🚀 Tech Stack
+
+## Frontend Technologies
+
+| Technology | Purpose |
+|------------|----------|
+| React Native CLI | Mobile App Development |
+| React Navigation | Navigation between screens |
+| Redux Toolkit | State management |
+| React Redux | Connect Redux with React Native |
+| Axios | API requests |
+| AsyncStorage | Local storage |
+| Reanimated | Smooth animations |
+| Gesture Handler | Gesture support |
+| Safe Area Context | Safe UI rendering |
+
+---
+
+# 🌐 API Used
+
+## TMDB API (The Movie Database)
+
+The application uses TMDB API to fetch:
+- Trending movies
+- Popular movies
+- Search results
+- Movie details
+
+Official Website:
+https://www.themoviedb.org/
+
+API Base URL:
+```env
+https://api.themoviedb.org/3
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+Image Base URL:
+```env
+https://image.tmdb.org/t/p/w500
 ```
 
-### iOS
+---
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+# 📂 Project Folder Structure
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+src/
+│
+├── api/                # API configuration and requests
+├── assets/             # Images, icons, fonts
+├── components/         # Reusable UI components
+├── navigation/         # Stack and tab navigation
+├── redux/              # Redux store and slices
+├── screens/            # Application screens
+├── services/           # Business logic and helpers
+├── utils/              # Utility/helper functions
+└── constants/          # Static constants
 ```
 
-Then, and every time you update your native dependencies, run:
+---
 
-```sh
-bundle exec pod install
+# ⚙️ Installation Guide
+
+## 1️⃣ Clone Repository
+
+Clone the project from GitHub:
+
+```bash
+git clone https://github.com/Satyamkr02/MovieExplorer.git
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+Move into project folder:
 
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+```bash
+cd MovieExplorer
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## 2️⃣ Install Dependencies
 
-## Step 3: Modify your app
+Install all required npm packages:
 
-Now that you have successfully run the app, let's make changes!
+```bash
+npm install
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+---
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## 3️⃣ Setup Environment Variables
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+Create a `.env` file in the root directory.
 
-## Congratulations! :tada:
+Add the following:
 
-You've successfully run and modified your React Native App. :partying_face:
+```env
+TMDB_API_KEY=YOUR_TMDB_API_KEY
+BASE_URL=https://api.themoviedb.org/3
+IMAGE_BASE_URL=https://image.tmdb.org/t/p/w500
+```
 
-### Now what?
+---
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+# 🔑 Getting TMDB API Key
 
-# Troubleshooting
+1. Visit:
+   https://www.themoviedb.org/
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+2. Create/Login to account
 
-# Learn More
+3. Go to:
+   Settings → API
 
-To learn more about React Native, take a look at the following resources:
+4. Generate API key
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+5. Paste API key inside `.env`
+
+Example:
+
+```env
+TMDB_API_KEY=abcd1234example
+```
+
+---
+
+# ▶️ Running the Application
+
+## Android
+
+Start Metro Server:
+
+```bash
+npx react-native start
+```
+
+Run Android App:
+
+```bash
+npx react-native run-android
+```
+
+---
+
+## iOS
+
+Install Pods:
+
+```bash
+cd ios
+pod install
+```
+
+Return back:
+
+```bash
+cd ..
+```
+
+Run iOS App:
+
+```bash
+npx react-native run-ios
+```
+
+---
+
+# 📦 Building Release APK
+
+Generate Android Release APK:
+
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+Generated APK Location:
+
+```bash
+android/app/build/outputs/apk/release/
+```
+
+---
+
+# 🛠️ Main Dependencies
+
+```json
+{
+  "@react-navigation/native": "^7.x",
+  "@reduxjs/toolkit": "^2.x",
+  "react-redux": "^9.x",
+  "axios": "^1.x",
+  "@react-native-async-storage/async-storage": "^2.x",
+  "react-native-reanimated": "^3.x",
+  "react-native-gesture-handler": "^2.x"
+}
+```
+
+---
+
+# 📸 Screenshots
+
+Add your application screenshots inside a `screenshots` folder.
+
+Example:
+
+```md
+![Home Screen](screenshots/home.png)
+
+![Movie Details](screenshots/details.png)
+
+![Search Screen](screenshots/search.png)
+```
+
+---
+
+# 🔥 Future Improvements
+
+The following features can be added in future updates:
+
+- 🎬 Movie trailers
+- ❤️ Favorite/Wishlist system
+- 🌐 Multi-language support
+- 🎭 Genre filters
+- ⭐ Ratings and reviews
+- 📺 TV Shows support
+- 🔔 Push notifications
+- 👤 User authentication
+- 📥 Offline downloads
+
+---
+
+# 👨‍💻 Author
+
+## Satyam Kumar
+
+Android & React Native Developer passionate about building scalable and professional mobile applications.
+
+### Skills:
+- React Native
+- Android Development
+- Kotlin
+- Firebase
+- Redux
+- API Integration
+- UI/UX Design
+
+GitHub:
+https://github.com/Satyamkr02
+
+---
+
+# 📄 License
+
+This project is licensed under the MIT License.
+
+You are free to use, modify, and distribute this project.
+
+---
+
+# ⭐ Support
+
+If you found this project helpful:
+
+- Give this repository a ⭐ on GitHub
+- Share it with others
+- Fork and contribute
+
+---
+
+# 📬 Contact
+
+For collaboration or project discussion:
+
+GitHub:
+https://github.com/Satyamkr02
+
+---
+
+# 🙌 Acknowledgements
+
+Special thanks to:
+
+- React Native Community
+- TMDB API
+- Open-source contributors
+
+for providing amazing tools and resources.
+
+---
