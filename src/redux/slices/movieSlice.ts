@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { getTrendingMovies, searchMovies } from '../../api/movieApi';
 import { Movie } from '../../types/movie';
 
@@ -7,6 +7,8 @@ interface MovieState {
     loading: boolean;
     loadingNextPage: boolean;
     error: string | null;
+    currentPage: number;
+    hasMore: boolean;
 }
 
 const initialState: MovieState = {
@@ -14,13 +16,17 @@ const initialState: MovieState = {
     loading: false,
     loadingNextPage: false,
     error: null,
+    currentPage: 1,
+    hasMore: true,
 };
+
+// ─── Async Thunks ────────────────────────────────────────────────────────────
 
 export const fetchMovies = createAsyncThunk(
     'movies/fetchMovies',
     async (page: number = 1) => {
         const response = await getTrendingMovies(page);
-        return response.results;
+        return { results: response.results, page, totalPages: response.total_pages };
     },
 );
 
@@ -28,15 +34,36 @@ export const searchMoviesThunk = createAsyncThunk(
     'movies/searchMovies',
     async ({ query, page = 1 }: { query: string; page?: number }) => {
         const response = await searchMovies(query, page);
-        return response.results;
+        return { results: response.results, page, totalPages: response.total_pages };
     },
 );
+
+// ─── Slice ───────────────────────────────────────────────────────────────────
 
 const movieSlice = createSlice({
     name: 'movies',
     initialState,
-    reducers: {},
+    reducers: {
+        rehydrateMovies: (state, action: PayloadAction<Movie[]>) => {
+            if (state.movies.length === 0) {
+                state.movies = action.payload;
+            }
+        },
+        setCurrentPage: (state, action: PayloadAction<number>) => {
+            state.currentPage = action.payload;
+        },
+        setHasMore: (state, action: PayloadAction<boolean>) => {
+            state.hasMore = action.payload;
+        },
+        clearMovies: (state) => {
+            state.movies = [];
+            state.currentPage = 1;
+            state.hasMore = true;
+            state.error = null;
+        },
+    },
     extraReducers: builder => {
+        // ── fetchMovies ──────────────────────────────────────────────────────
         builder
             .addCase(fetchMovies.pending, (state, action) => {
                 if (action.meta.arg === 1) {
@@ -49,22 +76,28 @@ const movieSlice = createSlice({
             .addCase(fetchMovies.fulfilled, (state, action) => {
                 state.loading = false;
                 state.loadingNextPage = false;
-                if (action.meta.arg === 1) {
-                    state.movies = action.payload;
+                const { results, page, totalPages } = action.payload;
+                state.hasMore = page < totalPages;
+
+                if (page === 1) {
+                    state.movies = results;
                 } else {
-                    // Prevent duplicate entries
+                    // Deduplicate by ID before appending
                     const existingIds = new Set(state.movies.map(m => m.id));
-                    const newMovies = action.payload.filter(m => !existingIds.has(m.id));
+                    const newMovies = results.filter(m => !existingIds.has(m.id));
                     state.movies = [...state.movies, ...newMovies];
                 }
             })
             .addCase(fetchMovies.rejected, state => {
                 state.loading = false;
                 state.loadingNextPage = false;
-                state.error = 'Failed to fetch movies';
-            })
+                state.error = 'Failed to load movies. Please check your connection.';
+            });
+
+        // ── searchMoviesThunk ────────────────────────────────────────────────
+        builder
             .addCase(searchMoviesThunk.pending, (state, action) => {
-                const page = action.meta.arg.page || 1;
+                const page = action.meta.arg.page ?? 1;
                 if (page === 1) {
                     state.loading = true;
                 } else {
@@ -75,22 +108,24 @@ const movieSlice = createSlice({
             .addCase(searchMoviesThunk.fulfilled, (state, action) => {
                 state.loading = false;
                 state.loadingNextPage = false;
-                const page = action.meta.arg.page || 1;
+                const { results, page, totalPages } = action.payload;
+                state.hasMore = page < totalPages;
+
                 if (page === 1) {
-                    state.movies = action.payload;
+                    state.movies = results;
                 } else {
-                    // Prevent duplicate entries
                     const existingIds = new Set(state.movies.map(m => m.id));
-                    const newMovies = action.payload.filter(m => !existingIds.has(m.id));
+                    const newMovies = results.filter(m => !existingIds.has(m.id));
                     state.movies = [...state.movies, ...newMovies];
                 }
             })
             .addCase(searchMoviesThunk.rejected, state => {
                 state.loading = false;
                 state.loadingNextPage = false;
-                state.error = 'Failed to search movies';
+                state.error = 'Search failed. Please try again.';
             });
     },
 });
 
+export const { rehydrateMovies, setCurrentPage, setHasMore, clearMovies } = movieSlice.actions;
 export default movieSlice.reducer;

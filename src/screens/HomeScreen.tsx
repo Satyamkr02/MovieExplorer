@@ -1,5 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -11,221 +16,260 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-
-import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux';
 
 import MovieCard from '../components/MovieCard';
-import Loader from '../components/Loader';
+import { SkeletonList } from '../components/SkeletonCard';
 import ErrorView from '../components/ErrorView';
 
-import { fetchMovies, searchMoviesThunk } from '../redux/slices/movieSlice';
-import { toggleTheme } from '../redux/slices/themeSlice';
-import { AppDispatch, RootState } from '../redux/store';
+import { useMovies } from '../hooks/useMovies';
+import { useTheme } from '../hooks/useTheme';
+import { COLORS, RADII, SPACING } from '../utils/theme';
+import { RootState } from '../redux/store';
 
-const genres = [
-    'All',
-    'Action',
-    'Comedy',
-    'Drama',
-    'Horror',
-    'Romance',
-    'Sci-Fi',
-    'Adventure',
-];
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const GENRES = ['All', 'Action', 'Comedy', 'Drama', 'Horror', 'Romance', 'Sci-Fi', 'Thriller'];
+const DEBOUNCE_MS = 600;
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const HomeScreen = ({ navigation }: any) => {
-    const dispatch = useDispatch<AppDispatch>();
-
-    const { movies, loading, loadingNextPage, error } = useSelector(
-        (state: RootState) => state.movies,
+    const { colors, darkMode } = useTheme();
+    const watchlistCount = useSelector(
+        (state: RootState) => state.watchlist.items.length,
     );
-    const darkMode = useSelector((state: RootState) => state.theme.darkMode);
+
+    const {
+        movies,
+        loading,
+        loadingNextPage,
+        error,
+        hasMore,
+        fetchInitial,
+        loadNextPage,
+        executeSearch,
+        loadNextSearchPage,
+    } = useMovies();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedGenre, setSelectedGenre] = useState('All');
-    const [page, setPage] = useState(1);
-
-    const [filteredMovies, setFilteredMovies] = useState(movies);
     const [searchLoading, setSearchLoading] = useState(false);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Compute theme colors dynamically
-    const colors = useMemo(() => {
-        return {
-            background: darkMode ? '#0B0F19' : '#F3F4F6',
-            headerWrapperBg: darkMode ? '#0B0F19' : '#F3F4F6',
-            text: darkMode ? '#FFFFFF' : '#1F2937',
-            subText: darkMode ? '#9CA3AF' : '#6B7280',
-            cardBackground: darkMode ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF',
-            borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB',
-            inputText: darkMode ? '#FFFFFF' : '#1F2937',
-            placeholder: darkMode ? '#6B7280' : '#9CA3AF',
-            dropdownBg: darkMode ? 'rgba(15, 23, 42, 0.98)' : '#FFFFFF',
-            dropdownBorder: darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
-            pillDefaultBg: darkMode ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF',
-            pillDefaultText: darkMode ? '#9CA3AF' : '#4B5563',
-            searchWrapperBg: darkMode ? 'rgba(255, 255, 255, 0.04)' : '#FFFFFF',
-            searchBorderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB',
-        };
-    }, [darkMode]);
-
-    // Fetch initial trending movies
+    // ── Initial fetch ──────────────────────────────────────────────────────────
     useEffect(() => {
-        dispatch(fetchMovies(1));
-    }, [dispatch]);
+        fetchInitial();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    // Reset pagination page index when filters change
+    // ── Debounced search ───────────────────────────────────────────────────────
     useEffect(() => {
-        setPage(1);
-    }, [searchQuery, selectedGenre]);
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+        }
 
-    // Debounce Search API Calls when user stops typing
-    useEffect(() => {
-        const isQueryActive = searchQuery.trim().length > 0;
+        const trimmed = searchQuery.trim();
 
-        if (isQueryActive) {
+        if (trimmed.length > 0) {
             setSearchLoading(true);
+            debounceRef.current = setTimeout(() => {
+                executeSearch(trimmed, 1);
+                setSearchLoading(false);
+            }, DEBOUNCE_MS);
+        } else if (trimmed.length === 0 && searchQuery !== '') {
+            // User cleared the input — restore trending
+            setSearchLoading(false);
+            fetchInitial();
         }
 
-        const delayDebounce = setTimeout(() => {
-            if (isQueryActive) {
-                dispatch(searchMoviesThunk({ query: searchQuery, page: 1 }))
-                    .unwrap()
-                    .finally(() => setSearchLoading(false));
-            } else {
-                setSearchLoading(true);
-                dispatch(fetchMovies(1))
-                    .unwrap()
-                    .finally(() => setSearchLoading(false));
+        return () => {
+            if (debounceRef.current) {
+                clearTimeout(debounceRef.current);
             }
-        }, 600); // Premium 600ms typing pause detector
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchQuery]);
 
-        return () => clearTimeout(delayDebounce);
-    }, [searchQuery, dispatch]);
-
-    // Apply Client-Side Genre Filter
-    useEffect(() => {
-        let updatedMovies = [...movies];
-
-        if (selectedGenre !== 'All') {
-            updatedMovies = updatedMovies.filter(movie =>
-                movie.overview
-                    ?.toLowerCase()
-                    .includes(selectedGenre.toLowerCase()),
-            );
+    // ── Client-side genre filter ───────────────────────────────────────────────
+    const filteredMovies = useMemo(() => {
+        if (selectedGenre === 'All') {
+            return movies;
         }
-
-        setFilteredMovies(updatedMovies);
+        return movies.filter(m =>
+            m.overview?.toLowerCase().includes(selectedGenre.toLowerCase()),
+        );
     }, [movies, selectedGenre]);
 
-    // Handle Infinite Scroll Loading
-    const handleLoadMore = () => {
-        if (loading || loadingNextPage) return;
-
-        const nextPage = page + 1;
-        setPage(nextPage);
-
-        if (searchQuery.trim().length > 0) {
-            dispatch(searchMoviesThunk({ query: searchQuery, page: nextPage }));
-        } else {
-            dispatch(fetchMovies(nextPage));
+    // ── Infinite scroll ────────────────────────────────────────────────────────
+    const handleLoadMore = useCallback(() => {
+        if (!hasMore || searchLoading) {
+            return;
         }
-    };
+        const trimmed = searchQuery.trim();
+        if (trimmed.length > 0) {
+            loadNextSearchPage(trimmed);
+        } else {
+            loadNextPage();
+        }
+    }, [hasMore, searchLoading, searchQuery, loadNextPage, loadNextSearchPage]);
 
-    const renderHeader = useMemo(() => {
-        return (
-            <View style={[styles.headerWrapper, { backgroundColor: colors.headerWrapperBg }]}>
-                {/* Title and Settings Cog Bar */}
-                <View style={styles.headerContainer}>
-                    <View style={styles.titleRow}>
+    const handleRetry = useCallback(() => {
+        fetchInitial();
+    }, [fetchInitial]);
+
+
+    const keyExtractor = useCallback(
+        (item: any, index: number) => `${item.id}-${index}`,
+        [],
+    );
+
+    const renderItem = useCallback(
+        ({ item }: any) => (
+            <MovieCard
+                movie={item}
+                onPress={() => navigation.navigate('Details', { movie: item })}
+            />
+        ),
+        [navigation],
+    );
+
+    // ── Sub-renders ────────────────────────────────────────────────────────────
+    const ListHeaderComponent = useMemo(
+        () => (
+            <View style={[styles.headerWrapper, { backgroundColor: colors.background }]}>
+                {/* Title Row */}
+                <View style={styles.titleRow}>
+                    <View>
                         <Text style={[styles.headerTitle, { color: colors.text }]}>
-                            Movie <Text style={styles.headerTitleHighlight}>Explorer</Text>
+                            Movie{' '}
+                            <Text style={styles.accentText}>Explorer</Text>
                         </Text>
+                        <Text style={[styles.headerSubtitle, { color: colors.subText }]}>
+                            Discover your next blockbuster
+                        </Text>
+                    </View>
+                    <View style={styles.headerActions}>
+                        {/* Watchlist button with live count badge */}
                         <TouchableOpacity
-                            activeOpacity={0.7}
+                            activeOpacity={0.75}
                             style={[
-                                styles.profileButton,
+                                styles.settingsBtn,
                                 {
-                                    backgroundColor: colors.cardBackground,
-                                    borderColor: colors.borderColor,
+                                    backgroundColor: colors.card,
+                                    borderColor: colors.border,
+                                },
+                            ]}
+                            onPress={() => navigation.navigate('Watchlist')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open watchlist"
+                        >
+                            <Text style={styles.settingsBtnIcon}>🔖</Text>
+                            {watchlistCount > 0 && (
+                                <View style={styles.watchlistBadge}>
+                                    <Text style={styles.watchlistBadgeText}>
+                                        {watchlistCount > 99 ? '99+' : watchlistCount}
+                                    </Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+
+                        {/* Settings */}
+                        <TouchableOpacity
+                            activeOpacity={0.75}
+                            style={[
+                                styles.settingsBtn,
+                                {
+                                    backgroundColor: colors.card,
+                                    borderColor: colors.border,
                                 },
                             ]}
                             onPress={() => navigation.navigate('Settings')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open settings"
                         >
-                            <Text style={styles.profileButtonText}>⚙️</Text>
+                            <Text style={styles.settingsBtnIcon}>⚙️</Text>
                         </TouchableOpacity>
                     </View>
-                    <Text style={[styles.headerSubtitle, { color: colors.subText }]}>
-                        Discover your next favorite blockbuster
-                    </Text>
                 </View>
 
-                {/* Search Box with dynamic loaders */}
-                <View style={styles.searchContainer}>
-                    <View
-                        style={[
-                            styles.searchWrapper,
-                            {
-                                backgroundColor: colors.searchWrapperBg,
-                                borderColor: isSearchFocused ? '#E11D48' : colors.searchBorderColor,
-                            },
-                        ]}
-                    >
-                        <Text style={styles.searchIcon}>🔍</Text>
-                        <TextInput
-                            placeholder="Search movies..."
-                            placeholderTextColor={colors.placeholder}
-                            value={searchQuery}
-                            onChangeText={text => {
-                                setSearchQuery(text);
-                                if (text.trim().length > 0) {
-                                    setSearchLoading(true);
-                                }
-                            }}
-                            onFocus={() => setIsSearchFocused(true)}
-                            onBlur={() => setIsSearchFocused(false)}
-                            style={[styles.searchInput, { color: colors.inputText }]}
+                {/* Search Bar */}
+                <View
+                    style={[
+                        styles.searchWrapper,
+                        {
+                            backgroundColor: colors.inputBg,
+                            borderColor: isSearchFocused
+                                ? COLORS.primary
+                                : colors.border,
+                        },
+                    ]}
+                >
+                    <Text style={styles.searchIcon}>🔍</Text>
+                    <TextInput
+                        style={[styles.searchInput, { color: colors.text }]}
+                        placeholder="Search movies…"
+                        placeholderTextColor={colors.subText}
+                        value={searchQuery}
+                        onChangeText={text => {
+                            setSearchQuery(text);
+                            if (text.trim().length > 0) {
+                                setSearchLoading(true);
+                            }
+                        }}
+                        onFocus={() => setIsSearchFocused(true)}
+                        onBlur={() => setIsSearchFocused(false)}
+                        returnKeyType="search"
+                        clearButtonMode="while-editing"
+                        autoCorrect={false}
+                        autoCapitalize="none"
+                    />
+                    {searchLoading && (
+                        <ActivityIndicator
+                            size="small"
+                            color={COLORS.primary}
+                            style={styles.searchSpinner}
                         />
-                        {searchLoading && (
-                            <ActivityIndicator
-                                size="small"
-                                color="#E11D48"
-                                style={styles.searchLoader}
-                            />
-                        )}
-                    </View>
+                    )}
                 </View>
 
-                {/* Category Pills */}
+                {/* Genre Pills */}
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.genreContainer}
                 >
-                    {genres.map(genre => {
-                        const isSelected = selectedGenre === genre;
-
+                    {GENRES.map(genre => {
+                        const active = selectedGenre === genre;
                         return (
                             <TouchableOpacity
                                 key={genre}
                                 activeOpacity={0.8}
                                 onPress={() => setSelectedGenre(genre)}
                                 style={[
-                                    styles.genreButton,
+                                    styles.genrePill,
                                     {
-                                        backgroundColor: isSelected ? '#E11D48' : colors.pillDefaultBg,
-                                        borderColor: isSelected ? '#E11D48' : colors.borderColor,
+                                        backgroundColor: active
+                                            ? COLORS.primary
+                                            : colors.pillDefault,
+                                        borderColor: active
+                                            ? COLORS.primary
+                                            : colors.border,
+                                        shadowColor: active
+                                            ? COLORS.primary
+                                            : 'transparent',
                                     },
-                                    isSelected && styles.selectedGenreShadow,
                                 ]}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Filter by ${genre}`}
+                                accessibilityState={{ selected: active }}
                             >
                                 <Text
                                     style={[
-                                        styles.genreText,
-                                        {
-                                            color: isSelected ? '#FFFFFF' : colors.pillDefaultText,
-                                        },
+                                        styles.genrePillText,
+                                        { color: active ? '#fff' : colors.subText },
                                     ]}
                                 >
                                     {genre}
@@ -234,89 +278,126 @@ const HomeScreen = ({ navigation }: any) => {
                         );
                     })}
                 </ScrollView>
+
+                {/* Results count chip */}
+                {filteredMovies.length > 0 && (
+                    <Text style={[styles.resultsCount, { color: colors.subText }]}>
+                        {filteredMovies.length} titles
+                        {searchQuery.trim().length > 0
+                            ? ` for "${searchQuery.trim()}"`
+                            : ' trending'}
+                    </Text>
+                )}
             </View>
-        );
-    }, [searchQuery, selectedGenre, isSearchFocused, searchLoading, colors, navigation]);
+        ),
+        [
+            colors,
+            isSearchFocused,
+            searchQuery,
+            searchLoading,
+            selectedGenre,
+            filteredMovies.length,
+            navigation,
+        ],
+    );
 
-    const renderEmptyComponent = () => {
-        if (searchLoading) {
-            return (
-                <View style={styles.emptyContainer}>
-                    <ActivityIndicator size="large" color="#E11D48" style={{ marginBottom: 16 }} />
-                    <Text style={[styles.emptyText, { color: colors.subText }]}>Searching the database...</Text>
-                </View>
-            );
+    const ListEmptyComponent = useCallback(() => {
+        if (loading || searchLoading) {
+            return null;
         }
-
         return (
             <View style={styles.emptyContainer}>
                 <Text style={styles.emptyIcon}>🎬</Text>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Movies Found</Text>
-                <Text style={[styles.emptySubtitle, { color: colors.subText }]}>
-                    We couldn't find any blockbusters matching "{searchQuery}" in "{selectedGenre}".
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    No movies found
                 </Text>
-                <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={styles.clearButton}
-                    onPress={() => {
-                        setSearchQuery('');
-                        setSelectedGenre('All');
-                    }}
-                >
-                    <Text style={styles.clearButtonText}>Reset Filters</Text>
-                </TouchableOpacity>
+                <Text style={[styles.emptySubtitle, { color: colors.subText }]}>
+                    {searchQuery.trim().length > 0
+                        ? `We couldn't find anything for "${searchQuery}"`
+                        : 'Try a different genre or check back later.'}
+                </Text>
+                {searchQuery.trim().length > 0 && (
+                    <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={styles.clearBtn}
+                        onPress={() => {
+                            setSearchQuery('');
+                            setSelectedGenre('All');
+                        }}
+                    >
+                        <Text style={styles.clearBtnText}>Clear Search</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         );
-    };
+    }, [loading, searchLoading, searchQuery, colors]);
 
-    if (loading) {
-        return <Loader />;
-    }
+    const ListFooterComponent = useCallback(() => {
+        if (loadingNextPage) {
+            return (
+                <View style={styles.footerLoader}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <Text style={[styles.footerText, { color: colors.subText }]}>
+                        Loading more…
+                    </Text>
+                </View>
+            );
+        }
+        if (!hasMore && filteredMovies.length > 0) {
+            return (
+                <View style={styles.footerEnd}>
+                    <View style={[styles.footerDivider, { backgroundColor: colors.border }]} />
+                    <Text style={[styles.footerEndText, { color: colors.subText }]}>
+                        You've seen it all 🎉
+                    </Text>
+                    <View style={[styles.footerDivider, { backgroundColor: colors.border }]} />
+                </View>
+            );
+        }
+        return <View style={styles.footerPad} />;
+    }, [loadingNextPage, hasMore, filteredMovies.length, colors]);
 
-    if (error) {
-        return <ErrorView message={error} />;
+    // ── Render ─────────────────────────────────────────────────────────────────
+    if (error && movies.length === 0) {
+        return <ErrorView message={error} onRetry={handleRetry} />;
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+        <SafeAreaView
+            style={[styles.container, { backgroundColor: colors.background }]}
+            edges={['top', 'left', 'right']}
+        >
             <StatusBar
                 barStyle={darkMode ? 'light-content' : 'dark-content'}
                 backgroundColor={colors.background}
             />
 
-
-            <FlatList
-                data={filteredMovies}
-                keyExtractor={(item, index) => `${item.id}-${index}`}
-                showsVerticalScrollIndicator={false}
-                ListHeaderComponent={renderHeader}
-                ListEmptyComponent={renderEmptyComponent}
-                contentContainerStyle={styles.listContent}
-                onEndReached={handleLoadMore}
-                onEndReachedThreshold={0.5}
-                ListFooterComponent={
-                    loadingNextPage ? (
-                        <View style={styles.footerLoader}>
-                            <ActivityIndicator size="small" color="#E11D48" />
-                            <Text style={[styles.footerLoaderText, { color: colors.subText }]}>
-                                Loading more blockbuster hits...
-                            </Text>
-                        </View>
-                    ) : (
-                        <View style={{ height: 20 }} />
-                    )
-                }
-                renderItem={({ item }) => (
-                    <MovieCard
-                        movie={item}
-                        onPress={() =>
-                            navigation.navigate('Details', {
-                                movie: item,
-                            })
-                        }
-                    />
-                )}
-            />
+            {loading && movies.length === 0 ? (
+                /* Skeleton Loading State */
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.skeletonScroll}
+                >
+                    {ListHeaderComponent}
+                    <SkeletonList count={5} />
+                </ScrollView>
+            ) : (
+                <FlatList
+                    data={filteredMovies}
+                    keyExtractor={keyExtractor}
+                    renderItem={renderItem}
+                    ListHeaderComponent={ListHeaderComponent}
+                    ListEmptyComponent={ListEmptyComponent}
+                    ListFooterComponent={ListFooterComponent}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.1}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    maxToRenderPerBatch={10}
+                    initialNumToRender={10}
+                    windowSize={12}
+                />
+            )}
         </SafeAreaView>
     );
 };
@@ -329,272 +410,231 @@ const styles = StyleSheet.create({
     },
 
     listContent: {
-        paddingBottom: 40,
+        paddingBottom: SPACING.xxl,
     },
+
+    skeletonScroll: {
+        paddingBottom: SPACING.xxl,
+    },
+
+    // ── Header ──────────────────────────────────────────────────────────────
 
     headerWrapper: {
-        paddingTop: 12,
-    },
-
-    headerContainer: {
-        paddingHorizontal: 16,
+        paddingTop: SPACING.sm,
+        paddingBottom: 4,
     },
 
     titleRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: SPACING.base,
+        marginBottom: SPACING.base,
     },
 
     headerTitle: {
-        fontSize: 32,
+        fontSize: 30,
         fontWeight: '800',
         letterSpacing: -0.8,
+        lineHeight: 36,
     },
 
-    headerTitleHighlight: {
-        color: '#E11D48',
-    },
-
-    profileButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        borderWidth: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        elevation: 2,
-    },
-
-    profileButtonText: {
-        fontSize: 18,
+    accentText: {
+        color: COLORS.primary,
     },
 
     headerSubtitle: {
-        marginTop: 6,
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '500',
+        marginTop: 2,
     },
 
-    searchContainer: {
-        marginTop: 20,
-        paddingHorizontal: 16,
+    settingsBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: RADII.md,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
     },
+
+    settingsBtnIcon: {
+        fontSize: 18,
+    },
+
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+
+    watchlistBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        backgroundColor: COLORS.primary,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+        borderWidth: 1.5,
+        borderColor: '#fff',
+    },
+
+    watchlistBadgeText: {
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: '800',
+        lineHeight: 13,
+    },
+
+    // ── Search ───────────────────────────────────────────────────────────────
 
     searchWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        height: 54,
-        borderRadius: 16,
-        paddingHorizontal: 16,
+        height: 52,
+        marginHorizontal: SPACING.base,
+        borderRadius: RADII.lg,
+        paddingHorizontal: SPACING.base,
         borderWidth: 1.5,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.04,
         shadowRadius: 6,
         elevation: 2,
     },
 
     searchIcon: {
-        fontSize: 18,
-        marginRight: 8,
+        fontSize: 16,
+        marginRight: SPACING.sm,
     },
 
     searchInput: {
         flex: 1,
         height: '100%',
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '500',
         paddingVertical: 0,
     },
 
-    searchLoader: {
-        marginLeft: 8,
+    searchSpinner: {
+        marginLeft: SPACING.sm,
     },
+
+    // ── Genre pills ───────────────────────────────────────────────────────────
 
     genreContainer: {
-        paddingHorizontal: 16,
-        paddingTop: 18,
-        paddingBottom: 16,
+        paddingHorizontal: SPACING.base,
+        paddingTop: SPACING.base,
+        paddingBottom: SPACING.sm,
+        gap: 8,
     },
 
-    genreButton: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 999,
-        marginRight: 10,
+    genrePill: {
+        paddingHorizontal: SPACING.base,
+        paddingVertical: 8,
+        borderRadius: RADII.full,
         borderWidth: 1,
-    },
-
-    selectedGenreShadow: {
-        shadowColor: '#E11D48',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.25,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.18,
         shadowRadius: 6,
-        elevation: 4,
+        elevation: 3,
     },
 
-    genreText: {
+    genrePillText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+
+    // ── Results count ─────────────────────────────────────────────────────────
+
+    resultsCount: {
+        fontSize: 12,
+        fontWeight: '600',
+        paddingHorizontal: SPACING.base + 4,
+        paddingBottom: SPACING.sm,
+    },
+
+    // ── Empty state ───────────────────────────────────────────────────────────
+
+    emptyContainer: {
+        marginTop: SPACING.xxxl + 20,
+        paddingHorizontal: SPACING.xxl,
+        alignItems: 'center',
+    },
+
+    emptyIcon: {
+        fontSize: 60,
+        marginBottom: SPACING.base,
+    },
+
+    emptyTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        marginBottom: SPACING.sm,
+    },
+
+    emptySubtitle: {
+        fontSize: 14,
+        textAlign: 'center',
+        lineHeight: 21,
+        marginBottom: SPACING.xl,
+    },
+
+    clearBtn: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: SPACING.xl,
+        paddingVertical: SPACING.md,
+        borderRadius: RADII.md,
+    },
+
+    clearBtnText: {
+        color: COLORS.textWhite,
         fontSize: 14,
         fontWeight: '700',
     },
 
-    emptyContainer: {
-        marginTop: 60,
-        paddingHorizontal: 32,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-
-    emptyIcon: {
-        fontSize: 64,
-        marginBottom: 16,
-    },
-
-    emptyTitle: {
-        fontSize: 22,
-        fontWeight: '800',
-        marginBottom: 8,
-    },
-
-    emptySubtitle: {
-        fontSize: 15,
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 24,
-    },
-
-    emptyText: {
-        fontSize: 15,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-
-    clearButton: {
-        backgroundColor: '#E11D48',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 14,
-        shadowColor: '#E11D48',
-        shadowOffset: {
-            width: 0,
-            height: 3,
-        },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-
-    clearButtonText: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '700',
-    },
+    // ── Footer ────────────────────────────────────────────────────────────────
 
     footerLoader: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 20,
+        paddingVertical: SPACING.lg,
         gap: 10,
     },
 
-    footerLoaderText: {
-        fontSize: 14,
+    footerText: {
+        fontSize: 13,
         fontWeight: '600',
     },
 
-    // Dropdown styles
-    dropdownBackdrop: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 99,
-        backgroundColor: 'transparent',
-    },
-
-    settingsDropdown: {
-        position: 'absolute',
-        top: 70,
-        right: 16,
-        width: 260,
-        borderRadius: 20,
-        borderWidth: 1,
-        padding: 16,
-        zIndex: 100,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-
-    settingsTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        marginBottom: 12,
-        letterSpacing: -0.3,
-    },
-
-    themeSelectorContainer: {
+    footerEnd: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderRadius: 10,
-        padding: 4,
-        marginBottom: 16,
-    },
-
-    themeOption: {
-        flex: 1,
-        paddingVertical: 8,
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 8,
+        paddingVertical: SPACING.base,
+        paddingHorizontal: SPACING.xl,
+        gap: 10,
     },
 
-    themeOptionSelected: {
-        backgroundColor: '#E11D48',
-    },
-
-    themeOptionText: {
-        fontSize: 13,
-        fontWeight: '700',
-    },
-
-    dropdownDivider: {
+    footerDivider: {
+        flex: 1,
         height: 1,
-        marginBottom: 12,
     },
 
-    dropdownProfileRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    footerEndText: {
+        fontSize: 12,
+        fontWeight: '600',
     },
 
-    dropdownProfileEmoji: {
-        fontSize: 22,
-    },
-
-    dropdownProfileName: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
-
-    dropdownProfileTier: {
-        fontSize: 11,
-        color: '#E11D48',
-        fontWeight: '700',
-        marginTop: 2,
+    footerPad: {
+        height: SPACING.lg,
     },
 });

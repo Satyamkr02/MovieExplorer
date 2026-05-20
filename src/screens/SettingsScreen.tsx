@@ -1,80 +1,241 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
     ScrollView,
     StatusBar,
     StyleSheet,
+    Switch,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDispatch, useSelector } from 'react-redux';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux';
 
-import { toggleTheme } from '../redux/slices/themeSlice';
-import { AppDispatch, RootState } from '../redux/store';
+import { useTheme } from '../hooks/useTheme';
+import { COLORS, RADII, SPACING } from '../utils/theme';
+import { RootState } from '../redux/store';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SettingItem {
+    id: string;
+    label: string;
+    description?: string;
+    value?: string;
+    isToggle?: boolean;
+    toggleValue?: boolean;
+    onToggle?: (val: boolean) => void;
+    onPress?: () => void;
+    destructive?: boolean;
+}
+
+// ─── Sub-Component: Row ───────────────────────────────────────────────────────
+
+const SettingRow = ({
+    item,
+    colors,
+}: {
+    item: SettingItem;
+    colors: any;
+}) => (
+    <TouchableOpacity
+        activeOpacity={item.onPress || item.isToggle ? 0.7 : 1}
+        onPress={item.onPress}
+        style={[
+            styles.row,
+            {
+                backgroundColor: colors.card,
+                borderBottomColor: colors.border,
+            },
+        ]}
+        accessibilityRole={item.isToggle ? 'switch' : 'button'}
+        accessibilityLabel={item.label}
+    >
+        <View style={styles.rowLeft}>
+            <Text style={[styles.rowLabel, { color: item.destructive ? COLORS.primary : colors.text }]}>
+                {item.label}
+            </Text>
+            {item.description && (
+                <Text style={[styles.rowDesc, { color: colors.subText }]}>
+                    {item.description}
+                </Text>
+            )}
+        </View>
+        {item.isToggle && item.onToggle ? (
+            <Switch
+                value={item.toggleValue}
+                onValueChange={item.onToggle}
+                trackColor={{ false: colors.surface, true: COLORS.primaryDim }}
+                thumbColor={item.toggleValue ? COLORS.primary : colors.subText}
+                ios_backgroundColor={colors.surface}
+            />
+        ) : item.value ? (
+            <Text style={[styles.rowValue, { color: colors.subText }]}>
+                {item.value}
+            </Text>
+        ) : item.onPress ? (
+            <Text style={[styles.rowChevron, { color: colors.subText }]}>›</Text>
+        ) : null}
+    </TouchableOpacity>
+);
+
+// ─── Sub-Component: Section ───────────────────────────────────────────────────
+
+const SettingSection = ({
+    title,
+    items,
+    colors,
+}: {
+    title: string;
+    items: SettingItem[];
+    colors: any;
+}) => (
+    <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.subText }]}>{title}</Text>
+        <View style={[styles.sectionBlock, { borderColor: colors.border }]}>
+            {items.map((item, i) => (
+                <View key={item.id}>
+                    <SettingRow item={item} colors={colors} />
+                    {i < items.length - 1 && (
+                        <View
+                            style={[styles.rowSeparator, { backgroundColor: colors.border }]}
+                        />
+                    )}
+                </View>
+            ))}
+        </View>
+    </View>
+);
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 const SettingsScreen = ({ navigation }: any) => {
-    const dispatch = useDispatch<AppDispatch>();
-    const darkMode = useSelector((state: RootState) => state.theme.darkMode);
-    const insets = useSafeAreaInsets();
+    const { darkMode, colors, onToggleTheme } = useTheme();
+    const watchlistCount = useSelector(
+        (state: RootState) => state.watchlist.items.length,
+    );
 
-    const colors = useMemo(() => {
-        return {
-            background: darkMode ? '#0B0F19' : '#F3F4F6',
-            cardBg: darkMode ? 'rgba(255, 255, 255, 0.04)' : '#FFFFFF',
-            borderColor: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.08)',
-            text: darkMode ? '#FFFFFF' : '#1F2937',
-            subText: darkMode ? '#9CA3AF' : '#4B5563',
-            backBtnBg: darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-            backBtnBorder: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
-            rowBg: darkMode ? 'rgba(255, 255, 255, 0.02)' : '#FFFFFF',
-        };
-    }, [darkMode]);
+    const libraryItems: SettingItem[] = useMemo(
+        () => [
+            {
+                id: 'watchlist',
+                label: 'My Watchlist',
+                description: 'Movies you\'ve saved to watch later',
+                value: watchlistCount > 0 ? `${watchlistCount} movies` : 'Empty',
+                onPress: () => navigation.navigate('Watchlist'),
+            },
+        ],
+        [watchlistCount, navigation],
+    );
 
-    const renderItem = (label: string, value?: string, action?: () => void) => {
-        return (
-            <TouchableOpacity
-                activeOpacity={action ? 0.7 : 1}
-                onPress={action}
-                style={[
-                    styles.settingRow,
-                    {
-                        backgroundColor: colors.rowBg,
-                        borderColor: colors.borderColor,
-                    },
-                ]}
-            >
-                <Text style={[styles.settingLabel, { color: colors.text }]}>{label}</Text>
-                {value && <Text style={[styles.settingValue, { color: colors.subText }]}>{value}</Text>}
-                {action && !value && <Text style={styles.arrowIcon}>›</Text>}
-            </TouchableOpacity>
-        );
-    };
+    const appearanceItems: SettingItem[] = useMemo(
+        () => [
+            {
+                id: 'dark-mode',
+                label: 'Dark Mode',
+                description: 'Switch between cinematic dark and clean light theme',
+                isToggle: true,
+                toggleValue: darkMode,
+                onToggle: () => onToggleTheme(),
+            },
+        ],
+        [darkMode, onToggleTheme],
+    );
+
+    const preferencesItems: SettingItem[] = useMemo(
+        () => [
+            {
+                id: 'quality',
+                label: 'Video Quality',
+                value: 'Auto (4K)',
+                onPress: () => {},
+            },
+            {
+                id: 'lang',
+                label: 'Language',
+                value: 'English',
+                onPress: () => {},
+            },
+            {
+                id: 'notifications',
+                label: 'Push Notifications',
+                isToggle: true,
+                toggleValue: true,
+                onToggle: () => {},
+            },
+        ],
+        [],
+    );
+
+    const supportItems: SettingItem[] = useMemo(
+        () => [
+            {
+                id: 'help',
+                label: 'Help & Support',
+                onPress: () => {},
+            },
+            {
+                id: 'privacy',
+                label: 'Privacy Policy',
+                onPress: () => {},
+            },
+            {
+                id: 'terms',
+                label: 'Terms of Service',
+                onPress: () => {},
+            },
+            {
+                id: 'about',
+                label: 'About Movie Explorer',
+                value: 'v1.0.0',
+            },
+        ],
+        [],
+    );
+
+    const accountItems: SettingItem[] = useMemo(
+        () => [
+            {
+                id: 'logout',
+                label: 'Sign Out',
+                destructive: true,
+                onPress: () => {},
+            },
+        ],
+        [],
+    );
+
+    const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+        <SafeAreaView
+            style={[styles.container, { backgroundColor: colors.background }]}
+            edges={['top', 'left', 'right']}
+        >
             <StatusBar
                 barStyle={darkMode ? 'light-content' : 'dark-content'}
                 backgroundColor={colors.background}
             />
 
-            {/* Custom Header Bar */}
-            <View style={styles.header}>
+            {/* Header */}
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
                 <TouchableOpacity
                     activeOpacity={0.8}
                     style={[
-                        styles.backButton,
+                        styles.backBtn,
                         {
-                            backgroundColor: colors.backBtnBg,
-                            borderColor: colors.backBtnBorder,
+                            backgroundColor: colors.card,
+                            borderColor: colors.border,
                         },
                     ]}
-                    onPress={() => navigation.goBack()}
+                    onPress={handleBack}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
                 >
-                    <Text style={[styles.backButtonText, { color: colors.text }]}>←</Text>
+                    <Text style={[styles.backBtnText, { color: colors.text }]}>←</Text>
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
-                <View style={{ width: 44 }} />
+                <View style={styles.headerSpacer} />
             </View>
 
             <ScrollView
@@ -82,78 +243,86 @@ const SettingsScreen = ({ navigation }: any) => {
                 contentContainerStyle={styles.scrollContent}
             >
                 {/* Profile Card */}
-                <View style={[styles.profileCard, { backgroundColor: colors.cardBg, borderColor: colors.borderColor }]}>
-                    <View style={styles.avatarContainer}>
-                        <Text style={styles.avatarEmoji}>👤</Text>
-                    </View>
-                    <Text style={[styles.profileName, { color: colors.text }]}>Satyam Kumar</Text>
-                    <View style={styles.proBadge}>
-                        <Text style={styles.proBadgeText}>PRO MEMBER</Text>
-                    </View>
-                    <Text style={[styles.profileEmail, { color: colors.subText }]}>satyamkumar@example.com</Text>
-                </View>
-
-                {/* Appearance Section */}
-                <Text style={[styles.sectionTitle, { color: colors.subText }]}>Appearance</Text>
-                <View style={[styles.sectionBlock, { borderColor: colors.borderColor }]}>
-                    <View
-                        style={[
-                            styles.themeRow,
-                            {
-                                backgroundColor: colors.rowBg,
-                                borderColor: colors.borderColor,
-                            },
-                        ]}
-                    >
-                        <Text style={[styles.settingLabel, { color: colors.text }]}>Theme Mode</Text>
-                        <View style={styles.themeSelector}>
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                style={[
-                                    styles.themeOption,
-                                    !darkMode && styles.themeOptionSelected,
-                                ]}
-                                onPress={() => {
-                                    if (darkMode) dispatch(toggleTheme());
-                                }}
-                            >
-                                <Text style={[styles.themeOptionText, { color: !darkMode ? '#FFFFFF' : colors.subText }]}>
-                                    ☀ Light
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                style={[
-                                    styles.themeOption,
-                                    darkMode && styles.themeOptionSelected,
-                                ]}
-                                onPress={() => {
-                                    if (!darkMode) dispatch(toggleTheme());
-                                }}
-                            >
-                                <Text style={[styles.themeOptionText, { color: darkMode ? '#FFFFFF' : colors.subText }]}>
-                                    ☾ Dark
-                                </Text>
-                            </TouchableOpacity>
+                <View
+                    style={[
+                        styles.profileCard,
+                        {
+                            backgroundColor: colors.card,
+                            borderColor: colors.border,
+                        },
+                    ]}
+                >
+                    <View style={styles.avatarRing}>
+                        <View style={styles.avatar}>
+                            <Text style={styles.avatarEmoji}>👤</Text>
                         </View>
                     </View>
+                    <Text style={[styles.profileName, { color: colors.text }]}>
+                        Satyam Kumar
+                    </Text>
+                    <View style={styles.proBadge}>
+                        <Text style={styles.proBadgeText}>⚡ PRO MEMBER</Text>
+                    </View>
+                    <Text style={[styles.profileEmail, { color: colors.subText }]}>
+                        satyamkumar@example.com
+                    </Text>
+
+                    {/* Stats row */}
+                    <View style={[styles.statsRow, { borderTopColor: colors.border }]}>
+                        {[
+                            { label: 'Watched', value: '142' },
+                            { label: 'Watchlist', value: '38' },
+                            { label: 'Reviews', value: '19' },
+                        ].map((stat, i) => (
+                            <View key={stat.label} style={styles.statItem}>
+                                <Text style={[styles.statValue, { color: colors.text }]}>
+                                    {stat.value}
+                                </Text>
+                                <Text style={[styles.statLabel, { color: colors.subText }]}>
+                                    {stat.label}
+                                </Text>
+                                {i < 2 && (
+                                    <View
+                                        style={[
+                                            styles.statDivider,
+                                            { backgroundColor: colors.border },
+                                        ]}
+                                    />
+                                )}
+                            </View>
+                        ))}
+                    </View>
                 </View>
 
-                {/* Preferences Section */}
-                <Text style={[styles.sectionTitle, { color: colors.subText }]}>Preferences</Text>
-                <View style={[styles.sectionBlock, { borderColor: colors.borderColor }]}>
-                    {renderItem('Offline Mode', 'Disabled', () => console.log('Offline Mode'))}
-                    {renderItem('Video Playback Quality', 'Auto (4K UHD)', () => console.log('Playback quality'))}
-                    {renderItem('Language', 'English', () => console.log('Language'))}
-                </View>
+                <SettingSection
+                    title="LIBRARY"
+                    items={libraryItems}
+                    colors={colors}
+                />
+                <SettingSection
+                    title="APPEARANCE"
+                    items={appearanceItems}
+                    colors={colors}
+                />
+                <SettingSection
+                    title="PREFERENCES"
+                    items={preferencesItems}
+                    colors={colors}
+                />
+                <SettingSection
+                    title="SUPPORT & LEGAL"
+                    items={supportItems}
+                    colors={colors}
+                />
+                <SettingSection
+                    title="ACCOUNT"
+                    items={accountItems}
+                    colors={colors}
+                />
 
-                {/* Support & Legal Section */}
-                <Text style={[styles.sectionTitle, { color: colors.subText }]}>Support & About</Text>
-                <View style={[styles.sectionBlock, { borderColor: colors.borderColor }]}>
-                    {renderItem('Help Center', undefined, () => console.log('Help'))}
-                    {renderItem('Privacy Policy', undefined, () => console.log('Privacy'))}
-                    {renderItem('About Movie Explorer', 'v1.0.0', () => console.log('About'))}
-                </View>
+                <Text style={[styles.versionNote, { color: colors.subText }]}>
+                    Movie Explorer • Built with ❤️ in React Native
+                </Text>
             </ScrollView>
         </SafeAreaView>
     );
@@ -167,64 +336,85 @@ const styles = StyleSheet.create({
     },
 
     scrollContent: {
-        paddingHorizontal: 16,
-        paddingBottom: 40,
+        paddingHorizontal: SPACING.base,
+        paddingBottom: SPACING.xxxl,
     },
+
+    // ── Header ────────────────────────────────────────────────────────────────
 
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
         height: 60,
-        paddingHorizontal: 16,
+        paddingHorizontal: SPACING.base,
+        borderBottomWidth: 1,
     },
 
-    backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
+    backBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: RADII.md,
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
 
-    backButtonText: {
+    backBtnText: {
         fontSize: 20,
         fontWeight: 'bold',
     },
 
     headerTitle: {
-        fontSize: 20,
+        flex: 1,
+        textAlign: 'center',
+        fontSize: 18,
         fontWeight: '800',
-        letterSpacing: -0.5,
+        letterSpacing: -0.4,
     },
+
+    headerSpacer: {
+        width: 40,
+    },
+
+    // ── Profile Card ──────────────────────────────────────────────────────────
 
     profileCard: {
-        alignItems: 'center',
-        borderRadius: 24,
+        borderRadius: RADII.xxl,
         borderWidth: 1,
-        padding: 24,
-        marginTop: 20,
-        marginBottom: 24,
+        alignItems: 'center',
+        marginTop: SPACING.xl,
+        marginBottom: SPACING.base,
+        overflow: 'hidden',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.02,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 3,
     },
 
-    avatarContainer: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: 'rgba(225, 29, 72, 0.1)',
+    avatarRing: {
+        marginTop: SPACING.xl,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 2,
+        borderColor: COLORS.primary,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: SPACING.md,
+    },
+
+    avatar: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: COLORS.primaryDim,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
     avatarEmoji: {
-        fontSize: 34,
+        fontSize: 32,
     },
 
     profileName: {
@@ -234,17 +424,19 @@ const styles = StyleSheet.create({
     },
 
     proBadge: {
-        backgroundColor: '#E11D48',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
-        marginTop: 6,
-        marginBottom: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.xs,
+        borderRadius: RADII.sm,
+        marginTop: SPACING.sm,
+        marginBottom: SPACING.sm,
     },
 
     proBadgeText: {
-        color: '#FFFFFF',
-        fontSize: 10,
+        color: COLORS.textWhite,
+        fontSize: 11,
         fontWeight: '800',
         letterSpacing: 0.5,
     },
@@ -252,80 +444,109 @@ const styles = StyleSheet.create({
     profileEmail: {
         fontSize: 13,
         fontWeight: '500',
+        marginBottom: SPACING.lg,
+    },
+
+    statsRow: {
+        flexDirection: 'row',
+        width: '100%',
+        borderTopWidth: 1,
+    },
+
+    statItem: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: SPACING.base,
+        position: 'relative',
+    },
+
+    statValue: {
+        fontSize: 20,
+        fontWeight: '800',
+    },
+
+    statLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+
+    statDivider: {
+        position: 'absolute',
+        right: 0,
+        top: '20%',
+        bottom: '20%',
+        width: 1,
+    },
+
+    // ── Sections ──────────────────────────────────────────────────────────────
+
+    section: {
+        marginBottom: SPACING.lg,
     },
 
     sectionTitle: {
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 1.2,
-        marginLeft: 4,
-        marginBottom: 8,
+        letterSpacing: 1.3,
+        marginBottom: SPACING.sm,
+        marginLeft: SPACING.xs,
     },
 
     sectionBlock: {
-        borderRadius: 20,
+        borderRadius: RADII.xl,
         borderWidth: 1,
         overflow: 'hidden',
-        marginBottom: 24,
     },
 
-    settingRow: {
+    // ── Rows ──────────────────────────────────────────────────────────────────
+
+    row: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.02)',
+        justifyContent: 'space-between',
+        paddingHorizontal: SPACING.base,
+        paddingVertical: SPACING.md,
     },
 
-    themeRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+    rowLeft: {
+        flex: 1,
+        marginRight: SPACING.sm,
     },
 
-    settingLabel: {
+    rowLabel: {
         fontSize: 15,
         fontWeight: '600',
     },
 
-    settingValue: {
+    rowDesc: {
+        fontSize: 12,
+        marginTop: 2,
+        lineHeight: 17,
+    },
+
+    rowValue: {
         fontSize: 14,
         fontWeight: '600',
     },
 
-    arrowIcon: {
-        fontSize: 18,
-        color: '#9CA3AF',
+    rowChevron: {
+        fontSize: 22,
         fontWeight: '500',
     },
 
-    themeSelector: {
-        flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderRadius: 10,
-        padding: 4,
-        width: 160,
+    rowSeparator: {
+        height: 1,
+        marginLeft: SPACING.base,
     },
 
-    themeOption: {
-        flex: 1,
-        paddingVertical: 6,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: 7,
-    },
+    // ── Footer ────────────────────────────────────────────────────────────────
 
-    themeOptionSelected: {
-        backgroundColor: '#E11D48',
-    },
-
-    themeOptionText: {
+    versionNote: {
+        textAlign: 'center',
         fontSize: 12,
-        fontWeight: '700',
+        fontWeight: '500',
+        marginTop: SPACING.sm,
+        marginBottom: SPACING.base,
     },
 });
