@@ -1,13 +1,45 @@
 import axios from 'axios';
-import { BASE_URL, TMDB_API_KEY } from '@env';
+import { BASE_URL, TMDB_API_KEY } from '../utils/constants';
 import { MovieResponse } from '../types/movie';
 
 const movieApi = axios.create({
     baseURL: BASE_URL,
+    timeout: 15000, // 15 second timeout
     params: {
         api_key: TMDB_API_KEY,
     },
+    headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'MovieExplorer/1.0.0 (Mobile)',
+    },
 });
+
+console.log('[movieApi] BASE_URL:', BASE_URL, 'API_KEY length:', TMDB_API_KEY ? TMDB_API_KEY.length : 0, 'API_KEY:', TMDB_API_KEY);
+
+// Log errors for debugging — check Metro / Logcat output
+movieApi.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response) {
+            console.error(
+                '[movieApi] HTTP Error:',
+                error.response.status,
+                error.response.data,
+            );
+        } else if (error.code === 'ECONNABORTED') {
+            console.error('[movieApi] Timeout — request took too long');
+        } else {
+            console.error(
+                '[movieApi] Network Error:',
+                error.message,
+                'Code:', error.code,
+                'URL:', `${error.config?.baseURL}${error.config?.url}`,
+            );
+        }
+        return Promise.reject(error);
+    }
+);
 
 export const getTrendingMovies = async (
     page = 1,

@@ -28,7 +28,7 @@ interface Props {
     onPress: () => void;
 }
 
-const BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
+const BACKDROP_BASE = IMAGE_BASE_URL.replace('/w500', '/w780');
 const IMAGE_H = 190;
 const FADE_STEPS = 20;
 
