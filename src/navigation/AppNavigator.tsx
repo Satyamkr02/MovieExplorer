@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
 import DetailsScreen from '../screens/DetailsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 import { Movie } from '../types/movie';
 
@@ -13,6 +14,7 @@ export type RootStackParamList = {
     Details: {
         movie: Movie;
     };
+    Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -41,25 +43,25 @@ const AppNavigator = () => {
             <Stack.Screen
                 name="Home"
                 component={HomeScreen}
-                options={{
-                    title: 'Movie Explorer',
-                }}
+                options={{ headerShown: false }}
             />
 
             <Stack.Screen
                 name="Search"
                 component={SearchScreen}
-                options={{
-                    title: 'Search Movies',
-                }}
+                options={{ headerShown: false }}
             />
 
             <Stack.Screen
                 name="Details"
                 component={DetailsScreen}
-                options={{
-                    title: 'Movie Details',
-                }}
+                options={{ headerShown: false }}
+            />
+
+            <Stack.Screen
+                name="Settings"
+                component={SettingsScreen}
+                options={{ headerShown: false }}
             />
         </Stack.Navigator>
     );

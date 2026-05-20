@@ -6,9 +6,11 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useSelector } from 'react-redux';
 
 import { IMAGE_BASE_URL } from '../utils/constants';
 import { Movie } from '../types/movie';
+import { RootState } from '../redux/store';
 
 interface Props {
     movie: Movie;
@@ -16,9 +18,27 @@ interface Props {
 }
 
 const MovieCard = ({ movie, onPress }: Props) => {
+    const darkMode = useSelector((state: RootState) => state.theme.darkMode);
+
+    const cardBg = darkMode ? 'rgba(255, 255, 255, 0.04)' : '#FFFFFF';
+    const borderColor = darkMode ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.08)';
+    const titleColor = darkMode ? '#FFFFFF' : '#1F2937';
+    const releaseColor = darkMode ? '#9CA3AF' : '#4B5563';
+    const overviewColor = darkMode ? '#9CA3AF' : '#6B7280';
+    const shadowOpacity = darkMode ? 0.15 : 0.05;
+    const shadowColor = darkMode ? '#000000' : '#1F2937';
+
     return (
         <TouchableOpacity
-            style={styles.card}
+            style={[
+                styles.card,
+                {
+                    backgroundColor: cardBg,
+                    borderColor: borderColor,
+                    shadowColor: shadowColor,
+                    shadowOpacity: shadowOpacity,
+                },
+            ]}
             activeOpacity={0.8}
             onPress={onPress}
         >
@@ -31,15 +51,15 @@ const MovieCard = ({ movie, onPress }: Props) => {
             />
 
             <View style={styles.contentContainer}>
-                <Text numberOfLines={2} style={styles.title}>
+                <Text numberOfLines={2} style={[styles.title, { color: titleColor }]}>
                     {movie.title}
                 </Text>
 
-                <Text style={styles.releaseDate}>
+                <Text style={[styles.releaseDate, { color: releaseColor }]}>
                     Release: {movie.release_date}
                 </Text>
 
-                <Text numberOfLines={3} style={styles.overview}>
+                <Text numberOfLines={3} style={[styles.overview, { color: overviewColor }]}>
                     {movie.overview}
                 </Text>
 
@@ -58,19 +78,21 @@ export default MovieCard;
 const styles = StyleSheet.create({
     card: {
         flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
         marginHorizontal: 14,
         marginVertical: 8,
         borderRadius: 16,
         overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.06)',
 
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
             height: 2,
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOpacity: 0.15,
+        shadowRadius: 5,
 
         elevation: 4,
     },
@@ -78,7 +100,7 @@ const styles = StyleSheet.create({
     image: {
         width: 120,
         height: 180,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: '#1E293B',
     },
 
     contentContainer: {
@@ -88,36 +110,38 @@ const styles = StyleSheet.create({
     },
 
     title: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '700',
-        color: '#111827',
+        color: '#FFFFFF',
     },
 
     releaseDate: {
         marginTop: 6,
         fontSize: 13,
-        color: '#6B7280',
+        color: '#9CA3AF',
     },
 
     overview: {
         marginTop: 10,
         fontSize: 14,
         lineHeight: 20,
-        color: '#4B5563',
+        color: '#9CA3AF',
     },
 
     ratingContainer: {
         marginTop: 12,
         alignSelf: 'flex-start',
-        backgroundColor: '#F3F4F6',
+        backgroundColor: 'rgba(251, 191, 36, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(251, 191, 36, 0.2)',
         paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 999,
+        paddingVertical: 5,
+        borderRadius: 8,
     },
 
     ratingText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#111827',
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#FBBF24',
     },
 });
